@@ -562,6 +562,7 @@ export async function getPilotClientDetails(
     name: client.pilotClientName ?? client.identifier,
     conversationCount: convs.length,
     actedCount,
+    actedPercentage: convs.length > 0 ? Math.round((actedCount / convs.length) * 100) : 0,
     averageConfidence,
     lastActive: client.lastActive,
     status,

@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
   // ── Persist ──────────────────────────────────────────────────────────────────
   try {
     await saveConversationFeedback(conversationId, userFeedback);
-    console.log(`[/api/feedback] Saved feedback for conversation ${conversationId}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[/api/feedback] Saved feedback for conversation ${conversationId}`);
+    }
   } catch (err) {
     console.error("[/api/feedback] Firestore save failed:", err);
     return NextResponse.json(

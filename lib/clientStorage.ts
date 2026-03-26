@@ -12,14 +12,6 @@ import {
 const STORAGE_KEY = "skylar_client_data";
 const MAX_CONVERSATIONS = 50;
 
-// ─── LocalStorage root shape ──────────────────────────────────────────────────
-
-interface ClientStorageData {
-  clientId: string;
-  identifier: string;
-  conversations: Conversation[];
-}
-
 // ─── Serialised shape stored in JSON ─────────────────────────────────────────
 // Dates are stored as ISO strings and rehydrated on read.
 

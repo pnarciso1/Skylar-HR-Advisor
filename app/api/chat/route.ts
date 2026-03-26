@@ -36,9 +36,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Stream ────────────────────────────────────────────────────────────────
-  console.log(
-    `[/api/chat] Starting stream — conversationId=${conversationId ?? "none"}, messages=${messages.length}`
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[/api/chat] Starting stream — conversationId=${conversationId ?? "none"}, messages=${messages.length}`
+    );
+  }
 
   let readable: ReadableStream<Uint8Array>;
   try {
