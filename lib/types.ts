@@ -75,17 +75,37 @@ export interface PilotClientSummary {
   name: string;
   conversationCount: number;
   actedCount: number;
+  actedPercentage: number;
   averageConfidence: number;
   lastActive: Date;
   status: PilotClientStatus;
 }
 
+export interface SituationTypeBreakdown {
+  attendance: number;
+  performance: number;
+  policy: number;
+  leave: number;
+  other: number;
+}
+
+export interface TestStatus {
+  targetPercentage: number;
+  currentPercentage: number;
+  passed: boolean;
+  conversationsNeeded: number;
+}
+
 export interface AdminStats {
   totalConversations: number;
   actionPlansDelivered: number;
+  actionPlansDeliveredPercentage: number;
   actedIndependently: number;
   actedIndependentlyPercentage: number;
   averageConfidence: number;
+  confidenceDistribution: Record<number, number>;
+  situationTypeBreakdown: SituationTypeBreakdown;
+  testStatus: TestStatus;
   pilotClients: PilotClientSummary[];
 }
 

@@ -16,6 +16,7 @@ export interface ConversationSidebarProps {
   onDeleteConversation: (id: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  loading?: boolean;
 }
 
 // ─── Situation type badges ────────────────────────────────────────────────────
@@ -174,6 +175,20 @@ function ConversationCard({
 
 // ─── Sidebar inner content ────────────────────────────────────────────────────
 
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+function ConversationSkeleton() {
+  return (
+    <div className="px-3 py-3 animate-pulse">
+      <div className="h-3.5 bg-gray-200 rounded w-4/5 mb-2" />
+      <div className="flex items-center gap-2">
+        <div className="h-3 bg-gray-100 rounded-full w-16" />
+        <div className="h-3 bg-gray-100 rounded w-12" />
+      </div>
+    </div>
+  );
+}
+
 function SidebarContent({
   conversations,
   activeConversationId,
@@ -182,6 +197,7 @@ function SidebarContent({
   onDeleteConversation,
   onClose,
   showCloseButton,
+  loading,
 }: ConversationSidebarProps & { showCloseButton: boolean }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("My Workspace");
@@ -248,7 +264,7 @@ function SidebarContent({
 
           <button
             onClick={onNewConversation}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
             New Conversation
@@ -256,43 +272,54 @@ function SidebarContent({
         </div>
 
         {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto">
-          {sorted.length === 0 ? (
+        <nav aria-label="Conversation history" className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="pt-2" role="status" aria-label="Loading conversations">
+              {[1, 2, 3].map((i) => (
+                <ConversationSkeleton key={i} />
+              ))}
+            </div>
+          ) : sorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 px-6 text-center">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3" aria-hidden="true">
                 <MessageSquare className="w-5 h-5 text-gray-400" />
               </div>
               <p className="text-sm font-medium text-gray-600">
                 No conversations yet.
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Start your first one!
+                Start your first HR question!
               </p>
             </div>
           ) : (
-            groups.map(({ label, items }) => (
-              <div key={label}>
-                <div className="px-4 pt-3 pb-1">
-                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    {label}
-                  </span>
-                </div>
-                {items.map((conv) => (
-                  <ConversationCard
-                    key={conv.id}
-                    conversation={conv}
-                    isActive={conv.id === activeConversationId}
-                    onSelect={() => {
-                      onSelectConversation(conv.id);
-                      onClose(); // close on mobile after selection
-                    }}
-                    onDeleteRequest={() => setPendingDeleteId(conv.id)}
-                  />
-                ))}
-              </div>
-            ))
+            <ul role="list" className="py-1">
+              {groups.map(({ label, items }) => (
+                <li key={label} role="listitem">
+                  <div className="px-4 pt-3 pb-1">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      {label}
+                    </span>
+                  </div>
+                  <ul role="list">
+                    {items.map((conv) => (
+                      <li key={conv.id} role="listitem">
+                        <ConversationCard
+                          conversation={conv}
+                          isActive={conv.id === activeConversationId}
+                          onSelect={() => {
+                            onSelectConversation(conv.id);
+                            onClose();
+                          }}
+                          onDeleteRequest={() => setPendingDeleteId(conv.id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
+        </nav>
       </div>
     </>
   );
@@ -318,7 +345,7 @@ export default function ConversationSidebar(props: ConversationSidebarProps) {
   return (
     <>
       {/* ── Desktop sidebar (always visible ≥768px) ── */}
-      <aside className="hidden md:flex flex-col w-[280px] flex-shrink-0 h-full bg-white border-r border-gray-200 shadow-sm">
+      <aside className="hidden md:flex flex-col w-[280px] flex-shrink-0 h-full bg-white border-r border-gray-200 shadow-sm" aria-label="Conversation history">
         <SidebarContent {...props} showCloseButton={false} />
       </aside>
 

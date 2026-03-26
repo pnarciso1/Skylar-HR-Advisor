@@ -174,14 +174,17 @@ export default function MessageBubble({
       )}
       onMouseEnter={() => setShowTimestamp(true)}
       onMouseLeave={() => setShowTimestamp(false)}
+      role="article"
+      aria-label={isUser ? "Your message" : "Skylar's response"}
     >
-      {/* ── Avatar ── */}
+      {/* ── Avatar (decorative) ── */}
       <div
         className={cn(
           "w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center",
           "text-xs font-bold shadow-sm flex-shrink-0",
           isUser ? "bg-gray-200 text-gray-600" : "bg-blue-600 text-white"
         )}
+        aria-hidden="true"
       >
         {isUser ? "Y" : "S"}
       </div>
@@ -189,7 +192,7 @@ export default function MessageBubble({
       {/* ── Bubble + timestamp wrapper ── */}
       <div
         className={cn(
-          "flex flex-col max-w-[70%]",
+          "flex flex-col max-w-[90%] sm:max-w-[75%]",
           isUser ? "items-end" : "items-start"
         )}
       >

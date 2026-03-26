@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Send, Menu, Loader2 } from "lucide-react";
+import OfflineBanner from "./OfflineBanner";
 import type { Message, Conversation, ChatRequest, UserFeedback } from "@/lib/types";
 import { generateId, truncateText } from "@/lib/utils";
 import {
@@ -74,6 +75,7 @@ export default function ChatInterface() {
     useState<Conversation | null>(null);
 
   // UI state
+  const [isInitializing, setIsInitializing] = useState(true);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
@@ -113,6 +115,8 @@ export default function ChatInterface() {
       setConversations([fresh]);
       setActiveConversation(fresh);
     }
+
+    setIsInitializing(false);
   }, [router]);
 
   // ── Persist active conversation id to sessionStorage ─────────────────────
@@ -461,10 +465,14 @@ export default function ChatInterface() {
         onDeleteConversation={handleDeleteConversation}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        loading={isInitializing}
       />
 
       {/* Main panel */}
       <div className="flex flex-col flex-1 min-w-0 h-full">
+
+        {/* Offline / reconnected banner */}
+        <OfflineBanner />
 
         {/* ── Header ── */}
         <header className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm z-10">
@@ -512,8 +520,44 @@ export default function ChatInterface() {
         </header>
 
         {/* ── Messages area ── */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6">
-          {messages.length === 0 && !isStreaming ? (
+        <div
+          className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6"
+          aria-label="Chat messages"
+          aria-live="polite"
+          aria-atomic="false"
+          role="log"
+        >
+          {isInitializing ? (
+            /* Loading skeleton — shown during initial localStorage read */
+            <div className="max-w-3xl mx-auto space-y-4 animate-pulse">
+              {/* Simulated assistant message */}
+              <div className="flex items-end gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="space-y-2 w-2/3">
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                  <div className="h-3 bg-gray-200 rounded w-5/6" />
+                  <div className="h-3 bg-gray-200 rounded w-4/6" />
+                </div>
+              </div>
+              {/* Simulated user message */}
+              <div className="flex justify-end">
+                <div className="space-y-2 w-1/2">
+                  <div className="h-3 bg-blue-200 rounded w-full" />
+                  <div className="h-3 bg-blue-200 rounded w-4/5 ml-auto" />
+                </div>
+              </div>
+              {/* Simulated assistant response */}
+              <div className="flex items-end gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="space-y-2 w-3/4">
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                  <div className="h-3 bg-gray-200 rounded w-5/6" />
+                  <div className="h-3 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+              </div>
+            </div>
+          ) : messages.length === 0 && !isStreaming ? (
             /* Empty state */
             <div className="flex flex-col items-center justify-center h-full text-center px-4 max-w-lg mx-auto">
               <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
@@ -586,7 +630,11 @@ export default function ChatInterface() {
         {/* ── Input area ── */}
         <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4">
           <div className="max-w-3xl mx-auto flex items-end gap-3">
+            <label htmlFor="chat-input" className="sr-only">
+              Type your HR question
+            </label>
             <textarea
+              id="chat-input"
               ref={textareaRef}
               value={input}
               onChange={handleInputChange}
@@ -594,7 +642,9 @@ export default function ChatInterface() {
               placeholder="Ask Skylar an HR question…"
               rows={1}
               disabled={isStreaming}
-              className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all bg-gray-50 disabled:opacity-50"
+              aria-label="Type your HR question"
+              aria-describedby="chat-disclaimer"
+              className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all bg-gray-50 disabled:opacity-50 min-h-[44px]"
               style={{ maxHeight: "160px" }}
             />
             <button
@@ -610,7 +660,7 @@ export default function ChatInterface() {
               )}
             </button>
           </div>
-          <p className="text-center text-xs text-gray-400 mt-2">
+          <p id="chat-disclaimer" className="text-center text-xs text-gray-400 mt-2">
             Skylar provides general HR guidance — not legal advice
           </p>
         </div>

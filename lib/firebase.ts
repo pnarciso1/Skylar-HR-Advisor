@@ -25,6 +25,7 @@ import type {
   AdminStats,
   PilotClientSummary,
   PilotClientStatus,
+  SituationTypeBreakdown,
   SituationType,
 } from "./types";
 
@@ -356,8 +357,129 @@ export async function deleteConversation(
 // ─── Admin / analytics ────────────────────────────────────────────────────────
 
 /**
- * Aggregates AdminStats for the dashboard.
- * Pass daysBack = 0 to include all time.
+ * Pure aggregation helper — computes all AdminStats from pre-fetched data.
+ * Kept separate so it can be unit-tested without a Firestore connection.
+ */
+export function calculateAdminStats(
+  convs: Conversation[],
+  pilotClientDocs: Client[]
+): AdminStats {
+  const TARGET_PERCENTAGE = 70;
+
+  const totalConversations = convs.length;
+  const actionPlansDelivered = convs.filter((c) => c.actionPlanDelivered).length;
+  const actionPlansDeliveredPercentage =
+    totalConversations > 0
+      ? Math.round((actionPlansDelivered / totalConversations) * 100)
+      : 0;
+
+  const feedbackConvs = convs.filter((c) => c.userFeedback !== null);
+  const actedIndependently = feedbackConvs.filter(
+    (c) => c.userFeedback?.actedOnGuidance === true
+  ).length;
+  const actedIndependentlyPercentage =
+    actionPlansDelivered > 0
+      ? Math.round((actedIndependently / actionPlansDelivered) * 100)
+      : 0;
+
+  const confidenceScores = feedbackConvs
+    .map((c) => c.userFeedback?.confidence)
+    .filter((v): v is number => v !== null && v !== undefined);
+  const averageConfidence =
+    confidenceScores.length > 0
+      ? confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length
+      : 0;
+
+  // Build confidence distribution (keys 1–10, all initialised to 0)
+  const confidenceDistribution: Record<number, number> = {};
+  for (let i = 1; i <= 10; i++) confidenceDistribution[i] = 0;
+  for (const score of confidenceScores) {
+    if (score >= 1 && score <= 10) confidenceDistribution[score]++;
+  }
+
+  // Situation type breakdown
+  const situationTypeBreakdown: SituationTypeBreakdown = {
+    attendance: 0,
+    performance: 0,
+    policy: 0,
+    leave: 0,
+    other: 0,
+  };
+  for (const c of convs) {
+    situationTypeBreakdown[c.situationType] =
+      (situationTypeBreakdown[c.situationType] ?? 0) + 1;
+  }
+
+  // Test status: % of action-plan recipients who acted independently
+  const currentPercentage = actedIndependentlyPercentage;
+  const passed = currentPercentage >= TARGET_PERCENTAGE;
+  // How many more "yes" responses are needed to reach 70% of actionPlansDelivered
+  const needed = passed
+    ? 0
+    : Math.ceil(TARGET_PERCENTAGE / 100 * actionPlansDelivered) - actedIndependently;
+  const conversationsNeeded = Math.max(0, needed);
+
+  // Per pilot-client breakdown (uses the date-window convs, not client.conversationCount)
+  const pilotClients: PilotClientSummary[] = pilotClientDocs.map((client) => {
+    const clientConvs = convs.filter((c) => c.clientId === client.id);
+    const clientActed = clientConvs.filter(
+      (c) => c.userFeedback?.actedOnGuidance === true
+    ).length;
+    const clientActedPercentage =
+      clientConvs.length > 0
+        ? Math.round((clientActed / clientConvs.length) * 100)
+        : 0;
+    const clientScores = clientConvs
+      .map((c) => c.userFeedback?.confidence)
+      .filter((v): v is number => v !== null && v !== undefined);
+    const clientAvgConfidence =
+      clientScores.length > 0
+        ? clientScores.reduce((a, b) => a + b, 0) / clientScores.length
+        : 0;
+
+    const daysSinceActive =
+      (Date.now() - client.lastActive.getTime()) / (1000 * 60 * 60 * 24);
+    const status: PilotClientStatus =
+      clientConvs.length === 0
+        ? "no-usage"
+        : daysSinceActive > 7
+        ? "low-usage"
+        : "active";
+
+    return {
+      clientId: client.id,
+      name: client.pilotClientName ?? client.identifier,
+      conversationCount: clientConvs.length,
+      actedCount: clientActed,
+      actedPercentage: clientActedPercentage,
+      averageConfidence: clientAvgConfidence,
+      lastActive: client.lastActive,
+      status,
+    };
+  });
+
+  return {
+    totalConversations,
+    actionPlansDelivered,
+    actionPlansDeliveredPercentage,
+    actedIndependently,
+    actedIndependentlyPercentage,
+    averageConfidence,
+    confidenceDistribution,
+    situationTypeBreakdown,
+    testStatus: {
+      targetPercentage: TARGET_PERCENTAGE,
+      currentPercentage,
+      passed,
+      conversationsNeeded,
+    },
+    pilotClients,
+  };
+}
+
+/**
+ * Fetches raw Firestore data for the given date window and returns
+ * fully-aggregated AdminStats. Pass daysBack = 0 for all-time.
  */
 export async function getAdminStats(daysBack: number): Promise<AdminStats> {
   const db = getFirestoreDb();
@@ -384,69 +506,11 @@ export async function getAdminStats(daysBack: number): Promise<AdminStats> {
   const convs = convsSnap.docs.map((d) =>
     docToConversation(d.id, d.data() as ConversationDoc)
   );
+  const pilotClientDocs = clientsSnap.docs.map((d) =>
+    docToClient(d.id, d.data() as ClientDoc)
+  );
 
-  const totalConversations = convs.length;
-  const actionPlansDelivered = convs.filter((c) => c.actionPlanDelivered).length;
-
-  const feedbackConvs = convs.filter((c) => c.userFeedback !== null);
-  const actedIndependently = feedbackConvs.filter(
-    (c) => c.userFeedback?.actedOnGuidance === true
-  ).length;
-  const actedIndependentlyPercentage =
-    actionPlansDelivered > 0
-      ? Math.round((actedIndependently / actionPlansDelivered) * 100)
-      : 0;
-
-  const confidenceScores = feedbackConvs
-    .map((c) => c.userFeedback?.confidence)
-    .filter((v): v is number => v !== null && v !== undefined);
-  const averageConfidence =
-    confidenceScores.length > 0
-      ? confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length
-      : 0;
-
-  const pilotClients: PilotClientSummary[] = clientsSnap.docs.map((d) => {
-    const client = docToClient(d.id, d.data() as ClientDoc);
-    const clientConvs = convs.filter((c) => c.clientId === client.id);
-    const clientActed = clientConvs.filter(
-      (c) => c.userFeedback?.actedOnGuidance === true
-    ).length;
-    const clientScores = clientConvs
-      .map((c) => c.userFeedback?.confidence)
-      .filter((v): v is number => v !== null && v !== undefined);
-    const clientAvgConfidence =
-      clientScores.length > 0
-        ? clientScores.reduce((a, b) => a + b, 0) / clientScores.length
-        : 0;
-
-    const daysSinceActive =
-      (Date.now() - client.lastActive.getTime()) / (1000 * 60 * 60 * 24);
-    const status: PilotClientStatus =
-      clientConvs.length === 0
-        ? "no-usage"
-        : daysSinceActive > 14
-        ? "low-usage"
-        : "active";
-
-    return {
-      clientId: client.id,
-      name: client.pilotClientName ?? client.identifier,
-      conversationCount: clientConvs.length,
-      actedCount: clientActed,
-      averageConfidence: clientAvgConfidence,
-      lastActive: client.lastActive,
-      status,
-    };
-  });
-
-  return {
-    totalConversations,
-    actionPlansDelivered,
-    actedIndependently,
-    actedIndependentlyPercentage,
-    averageConfidence,
-    pilotClients,
-  };
+  return calculateAdminStats(convs, pilotClientDocs);
 }
 
 /** Returns a detailed PilotClientSummary for a single client. */

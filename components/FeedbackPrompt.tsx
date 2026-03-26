@@ -136,6 +136,10 @@ export default function FeedbackPrompt({
                 max={10}
                 value={confidence}
                 onChange={(e) => setConfidence(Number(e.target.value))}
+                aria-label="Confidence score"
+                aria-valuemin={1}
+                aria-valuemax={10}
+                aria-valuenow={confidence}
                 className="w-full accent-green-600"
               />
               <div className="flex justify-between text-xs text-gray-400 select-none">
@@ -298,6 +302,7 @@ function NotesInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      aria-label={placeholder}
       rows={2}
       className="w-full resize-none rounded-lg border border-green-200 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400/40 focus:border-green-400 transition-all"
     />
